@@ -1,6 +1,6 @@
 {
   "name": "svelte-attach-haptic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Svelte attachment for adding haptics to elements.",
   "keywords": [
     "attachment",
