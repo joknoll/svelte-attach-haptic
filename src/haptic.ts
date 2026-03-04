@@ -1,3 +1,4 @@
+import { on } from "svelte/events";
 import type { Attachment } from "svelte/attachments";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -245,19 +246,12 @@ export function haptic(options: HapticOptions = {}): Attachment<HTMLElement> {
 
     const vibratePattern = createPattern(input, intensity);
 
-    const handleTrigger = () => triggerHaptic(vibratePattern);
-    const handleCancel = () => cancelHaptic();
-
-    element.addEventListener(triggerEvent, handleTrigger);
-    if (cancelEvent) {
-      element.addEventListener(cancelEvent, handleCancel);
-    }
+    const offTrigger = on(element, triggerEvent, () => triggerHaptic(vibratePattern));
+    const offCancel = cancelEvent ? on(element, cancelEvent, () => cancelHaptic()) : null;
 
     return () => {
-      element.removeEventListener(triggerEvent, handleTrigger);
-      if (cancelEvent) {
-        element.removeEventListener(cancelEvent, handleCancel);
-      }
+      offTrigger();
+      offCancel?.();
     };
   };
 }
