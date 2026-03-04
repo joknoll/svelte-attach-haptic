@@ -37,7 +37,7 @@ run = "bun run build"
 [tasks."release:publish"]
 description = "Publish the package to npm"
 depends = ["release:build"]
-run = "npm publish --access public"
+run = "npm publish"
 
 [tasks.release]
 description = "Full release: bump version → build → publish to npm"
