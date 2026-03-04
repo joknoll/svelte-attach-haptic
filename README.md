@@ -32,19 +32,19 @@ Add haptics to Svelte 5 components using the [attachments API](https://svelte.de
 
 Svelte attachment that triggers haptic feedback on an element.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `pattern` | `HapticInput` | `"medium"` | Vibration pattern or preset name |
-| `events` | `[triggerEvent, cancelEvent?]` | `["click"]` | DOM events to trigger/cancel haptics |
-| `intensity` | `number` | `0.5` | Global intensity override (0–1) |
+| Option      | Type                           | Default     | Description                          |
+|--------     |------                          |---------    |-------------                         |
+| `pattern`   | `HapticInput`                  | `"medium"`  | Vibration pattern or preset name     |
+| `events`    | `[triggerEvent, cancelEvent?]` | `["click"]` | DOM events to trigger/cancel haptics |
+| `intensity` | `number`                       | `0.5`       | Global intensity override (0–1)      |
 
 ### `useHaptic(pattern?, events?, intensity?)`
 
 Factory function that returns a reusable attachment with preset defaults, which can be further overridden per element.
 
-### `Haptic` class
+### Haptic class
 
-Low-level class for manual control:
+For manual control:
 
 ```ts
 import { Haptic } from "svelte-attach-haptic";
@@ -56,19 +56,19 @@ h.cancel();
 
 ### Built-in presets
 
-| Preset | Description |
-|--------|-------------|
-| `"light"` | Short, subtle tap |
-| `"medium"` | Standard tap |
-| `"heavy"` | Strong impact |
-| `"soft"` | Soft impact |
-| `"rigid"` | Crisp impact |
-| `"selection"` | Selection feedback |
-| `"success"` | Success notification |
-| `"warning"` | Warning notification |
-| `"error"` | Error notification |
-| `"nudge"` | Double bump |
-| `"buzz"` | Long buzz |
+| Preset        | Description          |
+|--------       |-------------         |
+| `"light"`     | Short, subtle tap    |
+| `"medium"`    | Standard tap         |
+| `"heavy"`     | Strong impact        |
+| `"soft"`      | Soft impact          |
+| `"rigid"`     | Crisp impact         |
+| `"selection"` | Selection feedback   |
+| `"success"`   | Success notification |
+| `"warning"`   | Warning notification |
+| `"error"`     | Error notification   |
+| `"nudge"`     | Double bump          |
+| `"buzz"`      | Long buzz            |
 
 ### Custom patterns
 

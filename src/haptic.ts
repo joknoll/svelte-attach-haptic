@@ -10,11 +10,7 @@ export interface Vibration {
 
 export type HapticPattern = number[] | Vibration[];
 
-export interface HapticPreset {
-  pattern: Vibration[];
-}
-
-export type HapticInput = number | string | HapticPattern | HapticPreset;
+export type HapticInput = number | string | HapticPattern;
 
 export type HapticEvents = [keyof HTMLElementEventMap, (keyof HTMLElementEventMap)?];
 
@@ -24,144 +20,158 @@ export interface HapticOptions {
   intensity?: number;
 }
 
-// ── Patterns ───────────────────────────────────────────────────────────
+// ── Presets ─────────────────────────────────────────────────────────────
 
 export const defaultPatterns = {
   // Notification
-  success: {
-    pattern: [
-      { duration: 30, intensity: 0.5 },
-      { delay: 60, duration: 40, intensity: 1 },
-    ],
-  },
-  warning: {
-    pattern: [
-      { duration: 40, intensity: 0.8 },
-      { delay: 100, duration: 40, intensity: 0.6 },
-    ],
-  },
-  error: {
-    pattern: [
-      { duration: 40, intensity: 0.9 },
-      { delay: 40, duration: 40, intensity: 0.9 },
-      { delay: 40, duration: 40, intensity: 0.9 },
-    ],
-  },
+  success: [
+    { duration: 30, intensity: 0.5 },
+    { delay: 60, duration: 40, intensity: 1 },
+  ],
+  warning: [
+    { duration: 40, intensity: 0.8 },
+    { delay: 100, duration: 40, intensity: 0.6 },
+  ],
+  error: [
+    { duration: 40, intensity: 0.9 },
+    { delay: 40, duration: 40, intensity: 0.9 },
+    { delay: 40, duration: 40, intensity: 0.9 },
+  ],
 
   // Impact
-  light: { pattern: [{ duration: 15, intensity: 0.4 }] },
-  medium: { pattern: [{ duration: 25, intensity: 0.7 }] },
-  heavy: { pattern: [{ duration: 35, intensity: 1 }] },
-  soft: { pattern: [{ duration: 40, intensity: 0.5 }] },
-  rigid: { pattern: [{ duration: 10, intensity: 1 }] },
+  light: [{ duration: 15, intensity: 0.4 }],
+  medium: [{ duration: 25, intensity: 0.7 }],
+  heavy: [{ duration: 35, intensity: 1 }],
+  soft: [{ duration: 40, intensity: 0.5 }],
+  rigid: [{ duration: 10, intensity: 1 }],
 
   // Selection
-  selection: { pattern: [{ duration: 8, intensity: 0.3 }] },
+  selection: [{ duration: 8, intensity: 0.3 }],
 
   // Custom
-  nudge: {
-    pattern: [
-      { duration: 80, intensity: 0.8 },
-      { delay: 80, duration: 50, intensity: 0.3 },
-    ],
-  },
-  buzz: { pattern: [{ duration: 1000, intensity: 1 }] },
-} as const satisfies Record<string, HapticPreset>;
+  nudge: [
+    { duration: 80, intensity: 0.8 },
+    { delay: 80, duration: 50, intensity: 0.3 },
+  ],
+  buzz: [{ duration: 1000, intensity: 1 }],
+} as const satisfies Record<string, Vibration[]>;
 
-// ── Core vibration logic ───────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 const MAX_PHASE_MS = 1000;
-const PWM_CYCLE = 20;
+const PWM_CYCLE_MS = 20;
 
-function normalizeInput(input: HapticInput): Vibration[] | null {
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+/**
+ * Resolve any supported input format into a normalized Vibration array.
+ * Returns null only if a string preset name is not found.
+ */
+function resolveVibrations(input: HapticInput): Vibration[] | null {
+  // Single duration: e.g. createPattern(100)
   if (typeof input === "number") {
     return [{ duration: input }];
   }
 
+  // Preset name: e.g. createPattern("success")
   if (typeof input === "string") {
     const preset = defaultPatterns[input as keyof typeof defaultPatterns];
     if (!preset) {
       console.warn(`[svelte-attach-haptic] Unknown preset: "${input}"`);
       return null;
     }
-    return preset.pattern.map((v) => ({ ...v }));
+    return preset.map((v) => ({ ...v }));
   }
 
-  if (Array.isArray(input)) {
-    if (input.length === 0) return [];
+  // Empty array
+  if (input.length === 0) return [];
 
-    if (typeof input[0] === "number") {
-      const nums = input as number[];
-      const vibrations: Vibration[] = [];
-      for (let i = 0; i < nums.length; i += 2) {
-        const delay = i > 0 ? nums[i - 1]! : 0;
-        vibrations.push({
-          ...(delay > 0 && { delay }),
-          duration: nums[i]!,
-        });
-      }
-      return vibrations;
+  // Number array (Web Vibration API format): [vibrate, pause, vibrate, pause, ...]
+  if (typeof input[0] === "number") {
+    const nums = input as number[];
+    const vibrations: Vibration[] = [];
+    for (let i = 0; i < nums.length; i += 2) {
+      const delay = i > 0 ? nums[i - 1]! : 0;
+      vibrations.push({
+        ...(delay > 0 && { delay }),
+        duration: nums[i]!,
+      });
     }
-
-    return (input as Vibration[]).map((v) => ({ ...v }));
+    return vibrations;
   }
 
-  return input.pattern.map((v) => ({ ...v }));
+  // Vibration array: e.g. [{ duration: 30, intensity: 0.5 }, ...]
+  return (input as Vibration[]).map((v) => ({ ...v }));
 }
 
-function modulateVibration(duration: number, intensity: number): number[] {
+/**
+ * Simulate variable intensity using PWM (pulse-width modulation).
+ * Full intensity returns a single on segment. Zero intensity returns nothing.
+ */
+function modulateIntensity(duration: number, intensity: number): number[] {
   if (intensity >= 1) return [duration];
   if (intensity <= 0) return [];
 
-  const onTime = Math.max(1, Math.round(PWM_CYCLE * intensity));
-  const offTime = PWM_CYCLE - onTime;
-  const result: number[] = [];
+  const onTime = Math.max(1, Math.round(PWM_CYCLE_MS * intensity));
+  const offTime = PWM_CYCLE_MS - onTime;
+  const segments: number[] = [];
 
   let remaining = duration;
-  while (remaining >= PWM_CYCLE) {
-    result.push(onTime);
-    result.push(offTime);
-    remaining -= PWM_CYCLE;
-  }
-  if (remaining > 0) {
-    const remOn = Math.max(1, Math.round(remaining * intensity));
-    result.push(remOn);
-    const remOff = remaining - remOn;
-    if (remOff > 0) result.push(remOff);
+  while (remaining >= PWM_CYCLE_MS) {
+    segments.push(onTime, offTime);
+    remaining -= PWM_CYCLE_MS;
   }
 
-  return result;
+  if (remaining > 0) {
+    const partialOn = Math.max(1, Math.round(remaining * intensity));
+    segments.push(partialOn);
+    const partialOff = remaining - partialOn;
+    if (partialOff > 0) segments.push(partialOff);
+  }
+
+  return segments;
 }
 
-function toVibratePattern(vibrations: Vibration[], defaultIntensity: number): number[] {
+/**
+ * Append a pause to the vibrate pattern.
+ * If the pattern ends on a pause slot, extend it instead of adding new entries.
+ */
+function appendPause(pattern: number[], ms: number): void {
+  if (ms <= 0) return;
+
+  if (pattern.length > 0 && pattern.length % 2 === 0) {
+    // Last entry is a pause — extend it
+    pattern[pattern.length - 1]! += ms;
+  } else {
+    // Need to open a new pause slot (preceded by a zero-vibrate if the array is empty)
+    if (pattern.length === 0) pattern.push(0);
+    pattern.push(ms);
+  }
+}
+
+/**
+ * Convert a Vibration array into the flat number[] format expected by
+ * the Web Vibration API: [vibrate, pause, vibrate, pause, ...].
+ */
+function buildVibratePattern(vibrations: Vibration[], defaultIntensity: number): number[] {
   const result: number[] = [];
 
   for (const vib of vibrations) {
-    const intensity = Math.max(0, Math.min(1, vib.intensity ?? defaultIntensity));
-    const delay = vib.delay ?? 0;
+    const intensity = clamp01(vib.intensity ?? defaultIntensity);
 
-    if (delay > 0) {
-      if (result.length > 0 && result.length % 2 === 0) {
-        result[result.length - 1]! += delay;
-      } else {
-        if (result.length === 0) result.push(0);
-        result.push(delay);
-      }
-    }
+    appendPause(result, vib.delay ?? 0);
 
-    const modulated = modulateVibration(vib.duration, intensity);
+    const segments = modulateIntensity(vib.duration, intensity);
 
-    if (modulated.length === 0) {
-      if (result.length > 0 && result.length % 2 === 0) {
-        result[result.length - 1]! += vib.duration;
-      } else if (vib.duration > 0) {
-        result.push(0);
-        result.push(vib.duration);
-      }
+    if (segments.length === 0) {
+      // Zero intensity — treat the entire duration as a pause
+      appendPause(result, vib.duration);
       continue;
     }
 
-    for (const seg of modulated) {
+    for (const seg of segments) {
       result.push(seg);
     }
   }
@@ -169,52 +179,74 @@ function toVibratePattern(vibrations: Vibration[], defaultIntensity: number): nu
   return result;
 }
 
-// ── Haptic class ───────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────
 
-export class Haptic {
-  static readonly isSupported: boolean =
-    typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+/** Whether the Web Vibration API is available in the current environment. */
+export const isSupported: boolean =
+  typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
 
-  private pattern: number[];
+/**
+ * Resolve a haptic input into a flat vibrate pattern (number[]).
+ * Returns an empty array if the input is invalid or unknown.
+ */
+export function createPattern(input: HapticInput = "medium", intensity: number = 0.5): number[] {
+  const vibrations = resolveVibrations(input);
+  if (!vibrations || vibrations.length === 0) return [];
 
-  constructor(input: HapticInput = "medium", intensity: number = 0.5) {
-    const vibrations = normalizeInput(input);
-    if (!vibrations || vibrations.length === 0) {
-      this.pattern = [];
-      return;
-    }
-
-    for (const vib of vibrations) {
-      if (vib.duration > MAX_PHASE_MS) vib.duration = MAX_PHASE_MS;
-    }
-
-    this.pattern = toVibratePattern(vibrations, Math.max(0, Math.min(1, intensity)));
+  for (const vib of vibrations) {
+    if (vib.duration > MAX_PHASE_MS) vib.duration = MAX_PHASE_MS;
   }
 
-  trigger(): void {
-    if (Haptic.isSupported && this.pattern.length > 0) {
-      navigator.vibrate(this.pattern);
-    }
-  }
+  return buildVibratePattern(vibrations, clamp01(intensity));
+}
 
-  cancel(): void {
-    if (Haptic.isSupported) {
-      navigator.vibrate(0);
-    }
+/** Fire a pre-built vibrate pattern. No-op if the Vibration API is unavailable. */
+export function triggerHaptic(pattern: number[]): void {
+  if (isSupported && pattern.length > 0) {
+    navigator.vibrate(pattern);
   }
 }
 
-// ── Attachment ─────────────────────────────────────────────────────────
+/** Cancel any active vibration. No-op if the Vibration API is unavailable. */
+export function cancelHaptic(): void {
+  if (isSupported) {
+    navigator.vibrate(0);
+  }
+}
 
+// ── Haptic class ─────────────────────────────────────────────────────────
+
+/** Convenience class for manual haptic control. */
+export class Haptic {
+  static readonly isSupported = isSupported;
+
+  private readonly pattern: number[];
+
+  constructor(input: HapticInput = "medium", intensity: number = 0.5) {
+    this.pattern = createPattern(input, intensity);
+  }
+
+  trigger(): void {
+    triggerHaptic(this.pattern);
+  }
+
+  cancel(): void {
+    cancelHaptic();
+  }
+}
+
+// ── Svelte Attachment ────────────────────────────────────────────────────
+
+/** Svelte attachment that triggers haptic feedback on DOM events. */
 export function haptic(options: HapticOptions = {}): Attachment<HTMLElement> {
   return (element: HTMLElement) => {
     const { pattern: input = "medium", events = ["click"], intensity = 0.5 } = options;
     const [triggerEvent, cancelEvent] = events;
 
-    const instance = new Haptic(input, intensity);
+    const vibratePattern = createPattern(input, intensity);
 
-    const handleTrigger = () => instance.trigger();
-    const handleCancel = () => instance.cancel();
+    const handleTrigger = () => triggerHaptic(vibratePattern);
+    const handleCancel = () => cancelHaptic();
 
     element.addEventListener(triggerEvent, handleTrigger);
     if (cancelEvent) {
@@ -230,8 +262,9 @@ export function haptic(options: HapticOptions = {}): Attachment<HTMLElement> {
   };
 }
 
-// ── Factory ────────────────────────────────────────────────────────────
+// ── Factory ──────────────────────────────────────────────────────────────
 
+/** Create a reusable haptic attachment factory with preset defaults. */
 export function useHaptic(pattern?: HapticInput, events?: HapticEvents, intensity?: number) {
   return (overrides?: Partial<HapticOptions>): Attachment<HTMLElement> =>
     haptic({ pattern, events, intensity, ...overrides });

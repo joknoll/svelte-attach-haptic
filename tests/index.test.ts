@@ -1,6 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { Haptic, haptic, useHaptic, defaultPatterns, type HapticOptions } from "../src";
+import {
+  isSupported,
+  createPattern,
+  triggerHaptic,
+  cancelHaptic,
+  Haptic,
+  haptic,
+  useHaptic,
+  defaultPatterns,
+  type HapticOptions,
+} from "../src";
 
 describe("defaultPatterns", () => {
   it("contains all expected presets", () => {
@@ -20,61 +30,73 @@ describe("defaultPatterns", () => {
     expect(Object.keys(defaultPatterns)).toEqual(expected);
   });
 
-  it("each preset has a non-empty pattern array", () => {
-    for (const [, preset] of Object.entries(defaultPatterns)) {
-      expect(Array.isArray(preset.pattern)).toBe(true);
-      expect(preset.pattern.length).toBeGreaterThan(0);
+  it("each preset is a non-empty Vibration array", () => {
+    for (const [, vibrations] of Object.entries(defaultPatterns)) {
+      expect(Array.isArray(vibrations)).toBe(true);
+      expect(vibrations.length).toBeGreaterThan(0);
     }
   });
 });
 
-describe("Haptic", () => {
-  it("isSupported is a boolean", () => {
-    expect(typeof Haptic.isSupported).toBe("boolean");
+describe("isSupported", () => {
+  it("is a boolean", () => {
+    expect(typeof isSupported).toBe("boolean");
+  });
+});
+
+describe("createPattern()", () => {
+  it("returns an array with default args", () => {
+    expect(Array.isArray(createPattern())).toBe(true);
   });
 
-  it("can be constructed with default args", () => {
-    const h = new Haptic();
-    expect(h).toBeInstanceOf(Haptic);
+  it("accepts a preset name", () => {
+    expect(Array.isArray(createPattern("success"))).toBe(true);
   });
 
-  it("can be constructed with a preset name", () => {
-    const h = new Haptic("success");
-    expect(h).toBeInstanceOf(Haptic);
+  it("accepts a number (duration)", () => {
+    expect(Array.isArray(createPattern(100))).toBe(true);
   });
 
-  it("can be constructed with a number (duration)", () => {
-    const h = new Haptic(100);
-    expect(h).toBeInstanceOf(Haptic);
+  it("accepts a number array", () => {
+    expect(Array.isArray(createPattern([100, 50, 100]))).toBe(true);
   });
 
-  it("can be constructed with a number array", () => {
-    const h = new Haptic([100, 50, 100]);
-    expect(h).toBeInstanceOf(Haptic);
-  });
-
-  it("can be constructed with a Vibration array", () => {
-    const h = new Haptic([
+  it("accepts a Vibration array", () => {
+    const pattern = createPattern([
       { duration: 30, intensity: 0.5 },
       { delay: 60, duration: 40, intensity: 1 },
     ]);
-    expect(h).toBeInstanceOf(Haptic);
+    expect(Array.isArray(pattern)).toBe(true);
   });
 
-  it("can be constructed with a HapticPreset", () => {
-    const h = new Haptic(defaultPatterns.success);
-    expect(h).toBeInstanceOf(Haptic);
-  });
-
-  it("warns on unknown preset", () => {
+  it("returns empty array for unknown preset", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    new Haptic("nonexistent");
+    const result = createPattern("nonexistent");
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("Unknown preset"));
+    expect(result).toEqual([]);
     warn.mockRestore();
   });
+});
 
-  it("trigger and cancel do not throw when unsupported", () => {
-    const h = new Haptic("medium");
+describe("triggerHaptic() and cancelHaptic()", () => {
+  it("do not throw when called", () => {
+    const pattern = createPattern("medium");
+    expect(() => triggerHaptic(pattern)).not.toThrow();
+    expect(() => cancelHaptic()).not.toThrow();
+  });
+});
+
+describe("Haptic class", () => {
+  it("isSupported matches the standalone export", () => {
+    expect(Haptic.isSupported).toBe(isSupported);
+  });
+
+  it("can be constructed with default args", () => {
+    expect(new Haptic()).toBeInstanceOf(Haptic);
+  });
+
+  it("trigger() and cancel() do not throw", () => {
+    const h = new Haptic("success");
     expect(() => h.trigger()).not.toThrow();
     expect(() => h.cancel()).not.toThrow();
   });
