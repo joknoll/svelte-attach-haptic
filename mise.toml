@@ -1,0 +1,22 @@
+[tools]
+bun = "latest"
+node = { version = "22", postinstall = "corepack enable" }
+
+# === Git Helpers ===
+git-cliff = "latest"
+gitleaks = "latest"
+lefthook = "latest"
+committed = "latest"
+
+[hooks]
+postinstall = ["lefthook install"]  # Install Git hooks after installation
+
+[env]
+_.path = [
+  "node_modules/.bin",
+]
+_.file = "./.env.local"
+
+
+[tasks.clean]
+run = "rm -rf node_modules"
