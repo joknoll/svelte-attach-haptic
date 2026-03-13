@@ -43,7 +43,7 @@ npm install svelte-attach-haptic
 Svelte attachment that triggers haptic feedback on an element.
 
 | Option      | Type                           | Default     | Description                          |
-|-------------|--------------------------------|-------------|--------------------------------------|
+| ----------- | ------------------------------ | ----------- | ------------------------------------ |
 | `pattern`   | `HapticInput`                  | `"medium"`  | Vibration pattern or preset name     |
 | `events`    | `[triggerEvent, cancelEvent?]` | `["click"]` | DOM events to trigger/cancel haptics |
 | `intensity` | `number`                       | `0.5`       | Global intensity override (0–1)      |
@@ -81,7 +81,7 @@ Boolean indicating whether the Web Vibration API is available.
 ### Built-in presets
 
 | Preset        | Category     | Description                                              |
-|---------------|--------------|----------------------------------------------------------|
+| ------------- | ------------ | -------------------------------------------------------- |
 | `"light"`     | Impact       | Short, subtle tap (small toggle, minor interaction)      |
 | `"medium"`    | Impact       | Standard tap (button press, card snap-to-position)       |
 | `"heavy"`     | Impact       | Strong impact (major state change, force press)          |
@@ -98,16 +98,18 @@ Boolean indicating whether the Web Vibration API is available.
 
 ```ts
 // Single duration (ms)
-haptic({ pattern: 200 })
+haptic({ pattern: 200 });
 
 // Array of durations (vibrate, pause, vibrate, ...)
-haptic({ pattern: [100, 50, 100] })
+haptic({ pattern: [100, 50, 100] });
 
 // Vibration objects with per-step intensity
-haptic({ pattern: [
-  { duration: 50, intensity: 0.8 },
-  { delay: 100, duration: 30, intensity: 0.4 },
-] })
+haptic({
+  pattern: [
+    { duration: 50, intensity: 0.8 },
+    { delay: 100, duration: 30, intensity: 0.4 },
+  ],
+});
 ```
 
 ## Design Guidelines
