@@ -21,7 +21,7 @@ pre-push:
 
     # Audit
     audit:
-      run: bun audit
+      run: bun audit --audit-level=high
 
     # test:
     #   run: bun test
